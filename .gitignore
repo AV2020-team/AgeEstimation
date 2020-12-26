@@ -1,0 +1,7 @@
+/.vscode
+/dataset/data/vggface2_data/test
+/dataset/data/vggface2_data/train
+/dataset/data/vggface2_data/annotations
+/dataset/cache
+/dataset/face_models
+/dataset/__pycache__
