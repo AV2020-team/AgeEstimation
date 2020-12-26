@@ -10,6 +10,7 @@ import sys
 import h5py
 
 from vgg2_utils import get_id_from_vgg2, PARTITION_TEST, PARTITION_VAL, PARTITION_TRAIN
+from hdf5_loader import save_dict_to_hdf5
 
 sys.path.append("../training")
 from dataset_tools import enclosing_square, add_margin, DataGenerator, VGGFace2Augmentation
@@ -17,6 +18,7 @@ from dataset_tools import enclosing_square, add_margin, DataGenerator, VGGFace2A
 EXT_ROOT = os.path.dirname(os.path.abspath(__file__))
 CACHE_DIR = "cache"
 DATA_DIR = "data"
+HDF5_DIR = "hdf5"
 
 NUM_CLASSES = 82
 
@@ -29,6 +31,8 @@ MAX_AGE = 82
 vgg2age = None
 age2vgg = None
 
+MAX_DATASET_DIMENSION = 1_000_000
+MAX_SAMPLES_PER_AGE = MAX_DATASET_DIMENSION // (MAX_AGE - MIN_AGE + 1)
 
 def _load_identities(agecsv):
     global vgg2age
@@ -89,20 +93,36 @@ def increase_roi(w, h, roi, qty):
     return xmin, ymin, xmax, ymax
 
 
-def _load_vgg2(csvmeta, imagesdir, partition, debug_max_num_samples=None):
+def _load_vgg2(csvmeta, imagesdir, partition, debug_max_num_samples=None, hdf5_file_name="file.hdf5"):
     imagesdir = imagesdir.replace('<part>', partition)
     csvmeta = csvmeta.replace('<part>', partition)
     meta = _readcsv(csvmeta, debug_max_num_samples)
     print('csv %s read complete: %d.' % (csvmeta, len(meta)))
     idmetacsv = os.path.join(os.path.dirname(csvmeta), 'identity_meta.csv')
     agecsv = os.path.join(os.path.dirname(csvmeta), 'pics_with_age.csv')
+    hdf5_file = h5py.File(hdf5_file_name, "w", swmr=True)
     data = []
     n_discarded = 0
+    ages_dict = {k: 0 for k in range(MIN_AGE, MAX_AGE + 1)}
+    print("shuffling meta...")
+    np.random.shuffle(meta)
+
+    index = 0
     for d in tqdm(meta):
-        _, category_label = get_id_from_vgg2(int(d[3]), idmetacsv)
-        sub_category_label, _ = get_age_from_vgg2(d[2][1:-4], agecsv)  # get_gender_from_vgg2(int(d[3]), agecsv)
         path = os.path.join(imagesdir, '%s' % (d[2]))
+        if not os.path.isfile(path):
+            #print("WARNING! Unable to read %s" % path)
+            n_discarded += 1
+            continue
+        _, category_label = get_id_from_vgg2(int(d[3]), idmetacsv)
+        sub_category_label, ret2 = get_age_from_vgg2(d[2][1:-4], agecsv)
+        if ret2 == -1 or ages_dict[round(float(sub_category_label))] > MAX_SAMPLES_PER_AGE:
+            continue
         img = cv2.imread(path)
+        if img is None or category_label == -1:
+            #print("WARNING! Unable to read %s" % path)
+            n_discarded += 1
+            continue
         roi = [int(x) for x in d[4:8]]
         roi = enclosing_square(roi)
         roi = increase_roi(img.shape[1], img.shape[0], roi, 0.2)
@@ -110,26 +130,39 @@ def _load_vgg2(csvmeta, imagesdir, partition, debug_max_num_samples=None):
             sample_partition = get_partition(category_label, sub_category_label)
         else:
             sample_partition = PARTITION_TEST
-
-        if img is not None:
+            
+        if img is not None and sample_partition is not None:
+            # only string as keys, type as value in dic np.ndarray, np.int64, np.float64, str, bytes, dict(recursive)
+            binary_data = None
+            with open(path, 'rb') as img_f:
+                binary_data = img_f.read()
             example = {
-                'img': path,
-                'label': sub_category_label,
-                'roi': roi,
-                'part': sample_partition
+                str(index): { #path non funziona, a meno che non si fa un replace degli /
+                    'index': str(index),
+                    'img': path,
+                    'label': np.float64(sub_category_label),
+                    'roi': np.asarray(roi),
+                    'part': np.int64(sample_partition),
+                }
             }
             if np.max(img) == np.min(img):
                 print('Warning, blank image: %s!' % path)
             else:
-                data.append(example)
+                data.append(dict(example[str(index)]))
+                example[str(index)]['img_bin'] = np.asarray(binary_data)
+                save_dict_to_hdf5(example, h5file=hdf5_file)
+                ages_dict[round(sub_category_label)] += 1
+                index += 1
         else:  # img is None
             print("WARNING! Unable to read %s" % path)
             n_discarded += 1
     print("Data loaded. %d samples (%d discarded)" % (len(data), n_discarded))
+    hdf5_file.close()
     return data
 
 
 people_by_age = {age: dict() for age in range(MIN_AGE, MAX_AGE + 1)}
+people_by_identity = {}
 
 
 def get_partition(identity_label, age_label):
@@ -184,35 +217,52 @@ class Vgg2DatasetAge:
         self.augment = augment
         self.gen = None
         self.preprocessing = preprocessing
+        self.hdf = None
+        self.data = []
         print('Loading %s data...' % partition)
 
         num_samples = '_' + str(debug_max_num_samples) if debug_max_num_samples is not None else ''
-        cache_file_name = 'vggface2_gender_{partition}{num_samples}.cache'.format(partition=partition, num_samples=num_samples)   
-
+        cache_file_name = 'vggface2_gender_{partition}{num_samples}.cache'.format(partition=partition, num_samples=num_samples)
+        hdf5_file_name = f"test_{num_samples}.hdf5" if partition_label == PARTITION_TEST else f"train_val{num_samples}.hdf5"
         cache_root = os.path.join(EXT_ROOT, CACHE_DIR)
+        hdf5_root = os.path.join(EXT_ROOT, HDF5_DIR)
         if not os.path.isdir(cache_root): os.mkdir(cache_root)
         cache_file_name = os.path.join(cache_root, cache_file_name)
+        hdf5_file_name = os.path.join(hdf5_root, hdf5_file_name)
 
         print("cache file name %s" % cache_file_name)
+        print("hdf5 file name %s" % hdf5_file_name)
         try:
+            self.hdf = h5py.File(hdf5_file_name, 'r', swmr=True)
             with open(cache_file_name, 'rb') as f:
                 self.data = pickle.load(f)
                 self.data = self.data[:debug_max_num_samples]
                 print("Data loaded. %d samples, from cache" % (len(self.data)))
-        except FileNotFoundError:
-            print("Loading %s data from scratch" % partition)
+        except (FileNotFoundError, OSError):
+            if self.hdf is not None:
+                print(f"Trying to reconstruct {partition} data list from hdf5...")
+                loaded_data = []
+                for v in tqdm(self.hdf.values()):
+                    loaded_data.append({
+                        'index': v['index'].value,
+                        'img':  v['img'].value,
+                        'label':  v['label'].value,
+                        'roi':  v['roi'].value,
+                        'part':  v['part'].value,
+                    })
+            else:
+                print("Loading %s data from scratch" % partition)
+                images_root = os.path.join(EXT_ROOT, DATA_DIR)
+                csvmeta = os.path.join(images_root, csvmeta)
+                imagesdir = os.path.join(images_root, imagesdir)
 
-            images_root = os.path.join(EXT_ROOT, DATA_DIR)
-
-            csvmeta = os.path.join(images_root, csvmeta)
-            imagesdir = os.path.join(images_root, imagesdir)
-
-            load_partition = "train" if partition_label == PARTITION_TRAIN or partition_label == PARTITION_VAL else "test"
-            loaded_data = _load_vgg2(csvmeta, imagesdir, load_partition, debug_max_num_samples)
+                load_partition = "train" if partition_label == PARTITION_TRAIN or partition_label == PARTITION_VAL else "test"
+                loaded_data = _load_vgg2(csvmeta, imagesdir, load_partition, debug_max_num_samples, hdf5_file_name=hdf5_file_name)
             if partition.startswith('test'):
                 self.data = loaded_data
             else:
                 self.data = [x for x in loaded_data if x['part'] == partition_label]
+            self.hdf = h5py.File(hdf5_file_name, 'r', swmr=True) if self.hdf is not None else self.hdf
             with open(cache_file_name, 'wb') as f:
                 print("Pickle dumping")
                 pickle.dump(self.data, f)
@@ -279,7 +329,7 @@ def test1(dataset="test", debug_samples=None):
                 cv2.imshow('vggface2 image', im)
                 if cv2.waitKey(0) & 0xFF == ord('q'):
                     cv2.destroyAllWindows()
-                    return                    
+                    return
 
 
 if '__main__' == __name__:

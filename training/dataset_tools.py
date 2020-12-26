@@ -5,7 +5,7 @@ import cv2
 import sys
 import os
 import numpy as np
-
+import h5py
 
 def _print_debug_yes(s):
   print(s)
@@ -376,7 +376,7 @@ import tensorflow
 class DataGenerator(tensorflow.keras.utils.Sequence): # TODO VIGILANTE
 
     'Generates data for Keras'
-    def __init__(self, data, target_shape, with_augmentation=True, batch_size=64, custom_augmentation=None, num_classes=None, preprocessing='full_normalization', fullinfo=False):
+    def __init__(self, data, target_shape, with_augmentation=True, batch_size=64, custom_augmentation=None, num_classes=None, preprocessing='full_normalization', fullinfo=False, hdf=None):
         if preprocessing not in ['full_normalization', 'z_normalization', 'vggface2', 'no_normalization']:
             raise Exception('unknown preprocessing: %s' % preprocessing)
         self.mutex = Lock()
@@ -387,6 +387,7 @@ class DataGenerator(tensorflow.keras.utils.Sequence): # TODO VIGILANTE
         self.num_classes=num_classes
         self.preprocessing = preprocessing
         self.fullinfo = fullinfo
+        self.hdf = hdf
         if preprocessing == 'vggface2':
             self.ds_means = VGGFACE2_MEANS
             self.ds_stds = None
@@ -469,9 +470,55 @@ class DataGenerator(tensorflow.keras.utils.Sequence): # TODO VIGILANTE
         return (img, label)
     
     def _load(self, index):
-        return self._load_item(self.data[index])
-            
-            
+        if self.hdf is None:
+            return self._load_item(self.data[index])
+        else:
+            return self._get_item_from_hdf(self.data[index])
+
+
+    def _get_item_from_hdf(self, d):
+        index = d["index"]
+        hdf_d = self.hdf[str(index)]
+        roi = [int(x) for x in hdf_d['roi'].value]
+        label = hdf_d['label'].value
+        if self.num_classes is not None and isinstance(label,int):
+            label = np.array(keras.utils.to_categorical(label, num_classes=self.num_classes))
+        frame = hdf_d['img_bin'].value
+        # if isinstance(frame, str): check if frame is np byte array
+        frame = cv2.imdecode(np.frombuffer(frame, np.uint8), cv2.IMREAD_COLOR)
+        if frame is None:
+            print('ERROR: Unable to read image %s' % hdf_d['img'].value)
+            return None
+        if self.augmentation is not None:
+            frame = self.augmentation.before_cut(frame, roi)
+            roi = self.augmentation.augment_roi(frame, roi)
+        img = cut(frame, roi)
+        
+        if self.augmentation is not None:
+            img = self.augmentation.after_cut(img)
+        # Preprocess the image for the network
+        img = cv2.resize(img, self.target_shape[0:2])
+        if self.preprocessing=='full_normalization':
+            img = equalize_hist(img)
+            img = img.astype(np.float32)
+            img = linear_balance_illumination(img)
+            if np.abs(np.min(img)-np.max(img)) < 1:
+                print("WARNING: Image is =%d" % np.min(img))
+            else:
+                img = mean_std_normalize(img)
+        elif self.preprocessing=='z_normalization':
+            img = mean_std_normalize(img, self.ds_means, self.ds_stds)
+        elif self.preprocessing=='vggface2':
+            img = mean_std_normalize(img, self.ds_means, self.ds_stds)
+        if self.target_shape[2]==3 and (len(img.shape)<3 or img.shape[2]<3):
+            img = np.repeat(np.squeeze(img)[:,:,None], 3, axis=2)
+        
+        if self.fullinfo:
+            return (img, label, hdf_d['img'].value, roi, hdf_d['part'].value)
+        base_label = [0] * self.num_classes
+        base_label[int(hdf_d['label'].value) - 1] += 1
+        return (img, base_label)
+          
     def _load_batch(self, start_index, load_pairs=False):
         def get_empty_stuff(item):
             if item is None:
