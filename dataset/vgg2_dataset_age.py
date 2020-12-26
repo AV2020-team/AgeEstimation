@@ -7,6 +7,8 @@ import numpy as np
 import csv
 import sys
 
+import h5py
+
 from vgg2_utils import get_id_from_vgg2, PARTITION_TEST, PARTITION_VAL, PARTITION_TRAIN
 
 sys.path.append("../training")
@@ -16,68 +18,53 @@ EXT_ROOT = os.path.dirname(os.path.abspath(__file__))
 CACHE_DIR = "cache"
 DATA_DIR = "data"
 
-NUM_CLASSES = 2
+NUM_CLASSES = 82
 
 FEMALE_LABEL = 0
 MALE_LABEL = 1
 
-vgg2gender = None
-gender2vgg = None
+MIN_AGE = 1
+MAX_AGE = 82
+
+vgg2age = None
+age2vgg = None
 
 
-def _load_identities(idmetacsv):
-    global vgg2gender
-    global gender2vgg
-    if vgg2gender is None:
-        vgg2gender = {}
-        gender2vgg = []
-        arr = _readcsv(idmetacsv)
+def _load_identities(agecsv):
+    global vgg2age
+    global age2vgg
+    if vgg2age is None:
+        vgg2age = {}
+        age2vgg = []
+        arr = _readcsv(agecsv)
         i = 0
         for line in arr:
             try:
-                vggnum = int(line[0][1:])
-                vgg2gender[vggnum] = (get_gender_label(line[-1]), i)
-                gender2vgg.append((get_gender_label(line[-1]), vggnum))
-                i += 1
+                vggpic = line[0][1:-4]
+                age_label = get_age_label(line[-1])
+                if age_label is not None:
+                    vgg2age[vggpic] = (age_label, i)
+                    age2vgg.append((age_label, vggpic))
+                    i += 1
             except ValueError:
                 pass
-        print(len(gender2vgg), len(vgg2gender), NUM_CLASSES)
+        print(len(age2vgg), len(vgg2age), NUM_CLASSES)
 
 
-def get_gender_label(gender_letter):
-    if gender_letter == 'm':
-        return MALE_LABEL
-    elif gender_letter == 'f':
-        return FEMALE_LABEL
-    else:
-        print("Error gender deserialize")
+def get_age_label(age_string):
+    try:
+        return float(age_string)
+    except:
+        print("Error age deserialize")
         return None
 
 
-def get_gender_string(label):
-    if label == MALE_LABEL:
-        return "male"
-    elif label == FEMALE_LABEL:
-        return "female"
-    else:
-        return label
-
-
-def get_gender_from_vgg2(vggidn, idmetacsv='vggface2/identity_meta.csv'):
-    _load_identities(idmetacsv)
+def get_age_from_vgg2(vggpic, agecsv='vggface2/pics_with_age.csv'):
+    _load_identities(agecsv)
     try:
-        return vgg2gender[vggidn]
+        return vgg2age[vggpic]
     except KeyError:
-        print('ERROR: n%d unknown' % vggidn)
-        return 'unknown', -1
-
-
-def get_vgg2_gender(idn, idmetacsv='vggface2/identity_meta.csv'):
-    _load_identities(idmetacsv)
-    try:
-        return gender2vgg[idn]
-    except IndexError:
-        print('ERROR: %d unknown', idn)
+        print('ERROR: n%s unknown' % vggpic)
         return 'unknown', -1
 
 
@@ -94,22 +81,31 @@ def _readcsv(csvpath, debug_max_num_samples=None):
     return np.array(data)
 
 
+def increase_roi(w, h, roi, qty):
+    xmin = max(0, roi[0] - qty/2 * roi[2])
+    ymin = max(0, roi[1] - qty/2 * roi[3])
+    xmax = min(w, (1 + qty) * roi[2])
+    ymax = min(h, (1 + qty) * roi[3])
+    return xmin, ymin, xmax, ymax
+
+
 def _load_vgg2(csvmeta, imagesdir, partition, debug_max_num_samples=None):
     imagesdir = imagesdir.replace('<part>', partition)
     csvmeta = csvmeta.replace('<part>', partition)
     meta = _readcsv(csvmeta, debug_max_num_samples)
     print('csv %s read complete: %d.' % (csvmeta, len(meta)))
     idmetacsv = os.path.join(os.path.dirname(csvmeta), 'identity_meta.csv')
+    agecsv = os.path.join(os.path.dirname(csvmeta), 'pics_with_age.csv')
     data = []
     n_discarded = 0
     for d in tqdm(meta):
         _, category_label = get_id_from_vgg2(int(d[3]), idmetacsv)
-        sub_category_label, _ = get_gender_from_vgg2(int(d[3]), idmetacsv)
+        sub_category_label, _ = get_age_from_vgg2(d[2][1:-4], agecsv)  # get_gender_from_vgg2(int(d[3]), agecsv)
         path = os.path.join(imagesdir, '%s' % (d[2]))
         img = cv2.imread(path)
         roi = [int(x) for x in d[4:8]]
         roi = enclosing_square(roi)
-        # roi = add_margin(roi, 0.2)
+        roi = increase_roi(img.shape[1], img.shape[0], roi, 0.2)
         if partition.startswith("train") or partition.startswith('val'):
             sample_partition = get_partition(category_label, sub_category_label)
         else:
@@ -133,39 +129,38 @@ def _load_vgg2(csvmeta, imagesdir, partition, debug_max_num_samples=None):
     return data
 
 
-people_by_gender = {
-    FEMALE_LABEL: dict(),
-    MALE_LABEL: dict()
-}
+people_by_age = {age: dict() for age in range(MIN_AGE, MAX_AGE + 1)}
 
 
-def get_partition(identity_label, gender_label):
-    if gender_label == MALE_LABEL:
-        return split_by_identity(MALE_LABEL, identity_label)
-    elif gender_label == FEMALE_LABEL:
-        return split_by_identity(FEMALE_LABEL, identity_label)
+def get_partition(identity_label, age_label):
+    try:
+        age = round(float(age_label))
+    except ValueError:
+        return None
+    if MIN_AGE <= age <= MAX_AGE:
+        return split_by_identity(age, identity_label)
     else:
         return None
 
 
-def split_by_identity(gender_label, identity_label):
-    global people_by_gender
+def split_by_identity(age_label, identity_label):
+    global people_by_age
     try:
-        faces, partition = people_by_gender[gender_label][identity_label]
-        people_by_gender[gender_label][identity_label] = (faces + 1, partition)
+        faces, partition = people_by_age[age_label][identity_label]
+        people_by_age[age_label][identity_label] = (faces + 1, partition)
     except KeyError:
-        l = len(people_by_gender[gender_label])
+        l = len(people_by_age[age_label])
         # split 10/90 stratified by identity
-        l = (l - 1) % 10
+        l = (l + 1) % 10
         if l == 0:
             partition = PARTITION_VAL
         else:
             partition = PARTITION_TRAIN
-        people_by_gender[gender_label][identity_label] = (1, partition)
+        people_by_age[age_label][identity_label] = (1, partition)
     return partition
 
 
-class Vgg2DatasetGender:
+class Vgg2DatasetAge:
     def __init__(self,
                 partition='train',
                 imagesdir='vggface2_data/<part>',
@@ -236,32 +231,35 @@ class Vgg2DatasetGender:
         return len(self.data)
 
 
+
 def test1(dataset="test", debug_samples=None):
-    global people_by_gender
+    global people_by_age
     if dataset.startswith("train") or dataset.startswith("val"):
         print(dataset, debug_samples if debug_samples is not None else '')
-        dt = Vgg2DatasetGender(dataset, target_shape=(224, 224, 3), preprocessing='vggface2',
+        dt = Vgg2DatasetAge(dataset, target_shape=(224, 224, 3), preprocessing='vggface2',
                                custom_augmentation=VGGFace2Augmentation(), debug_max_num_samples=debug_samples)
         print("SAMPLES %d" % dt.get_num_samples())
 
-        if len(people_by_gender[MALE_LABEL]):
-            print("Males %d" % (len(people_by_gender[MALE_LABEL])))
-            samples = [v[0] for k, v in people_by_gender[MALE_LABEL].items() if v[1] == PARTITION_TRAIN]
+        """
+        if len(people_by_age[MALE_LABEL]):
+            print("Males %d" % (len(people_by_age[MALE_LABEL])))
+            samples = [v[0] for k, v in people_by_age[MALE_LABEL].items() if v[1] == PARTITION_TRAIN]
             print("Male samples in train %d (people %d)" % (sum(samples), len(samples)))
-            samples = [v[0] for k, v in people_by_gender[MALE_LABEL].items() if v[1] == PARTITION_VAL]
+            samples = [v[0] for k, v in people_by_age[MALE_LABEL].items() if v[1] == PARTITION_VAL]
             print("Male samples in validation %d (people %d)" % (sum(samples), len(samples)))
 
-        if len(people_by_gender[FEMALE_LABEL]):
-            print("Females %d" % (len(people_by_gender[FEMALE_LABEL])))
-            samples = [v[0] for k, v in people_by_gender[FEMALE_LABEL].items() if v[1] == PARTITION_TRAIN]
+        if len(people_by_age[FEMALE_LABEL]):
+            print("Females %d" % (len(people_by_age[FEMALE_LABEL])))
+            samples = [v[0] for k, v in people_by_age[FEMALE_LABEL].items() if v[1] == PARTITION_TRAIN]
             print("Female samples in train %d (people %d)" % (sum(samples), len(samples)))
-            samples = [v[0] for k, v in people_by_gender[FEMALE_LABEL].items() if v[1] == PARTITION_VAL]
+            samples = [v[0] for k, v in people_by_age[FEMALE_LABEL].items() if v[1] == PARTITION_VAL]
             print("Female samples in validation %d (people %d)" % (sum(samples), len(samples)))
+        """
 
         print('Now generating from %s set' % dataset)
         gen = dt.get_generator()
     else:
-        dv = Vgg2DatasetGender('test', target_shape=(224, 224, 3), preprocessing='full_normalization',
+        dv = Vgg2DatasetAge('test', target_shape=(224, 224, 3), preprocessing='full_normalization',
                                debug_max_num_samples=debug_samples, augment=False)
         print("SAMPLES %d" % dv.get_num_samples())
         print('Now generating from test set')
@@ -272,24 +270,23 @@ def test1(dataset="test", debug_samples=None):
         print(i)
         i += 1
         for batch in tqdm(gen):
-            for im, gender in zip(batch[0], batch[1]):
-                gender = np.argmax(gender)
+            for im, age in zip(batch[0], batch[1]):
                 facemax = np.max(im)
                 facemin = np.min(im)
                 im = (255 * ((im - facemin) / (facemax - facemin))).astype(np.uint8)
-                cv2.putText(im, "%d %s" % (gender, get_gender_string(gender)), (0, im.shape[1]),
+                cv2.putText(im, "%.2f" % age, (0, im.shape[1]),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255))
                 cv2.imshow('vggface2 image', im)
                 if cv2.waitKey(0) & 0xFF == ord('q'):
                     cv2.destroyAllWindows()
-                    return
+                    return                    
 
 
 if '__main__' == __name__:
     test1("train")
-    test1("val")
-    test1("test")
+    # test1("val")
+    # test1("test", 2_000)
     
-    test1("train") # cache
-    test1("val") # cache
-    test1("test") # cache
+    # test1("train") # cache
+    # test1("val") # cache
+    # test1("test") # cache
