@@ -47,18 +47,18 @@ def add_margin(roi, qty):
      roi[3]+2*qty )
 
 def cut(frame, roi):
-    pA = ( int(roi[0]) , int(roi[1]) )
-    pB = ( int(roi[0]+roi[2]-1), int(roi[1]+roi[3]-1) ) #pB will be an internal point
+    pA = ( floor(roi[0]) , floor(roi[1]) )
+    pB = ( floor(roi[0]+roi[2]), floor(roi[1]+roi[3]) ) #pB will be an internal point
     W,H = frame.shape[1], frame.shape[0]
     A0 = pA[0] if pA[0]>=0 else 0
     A1 = pA[1] if pA[1]>=0 else 0
     data = frame[ A1:pB[1], A0:pB[0] ]
     if pB[0] < W and pB[1] < H and pA[0]>=0 and pA[1]>=0:
         return data
-    w,h = int(roi[2]), int(roi[3])
+    w,h = ceil(roi[2]), ceil(roi[3])
     img = np.zeros((h,w,frame.shape[2]), dtype=np.uint8)
-    offX = int(-roi[0]) if roi[0]<0 else 0
-    offY = int(-roi[1]) if roi[1]<0 else 0
+    offX = ceil(-roi[0]) if roi[0]<0 else 0
+    offY = ceil(-roi[1]) if roi[1]<0 else 0
     np.copyto( img[ offY:offY+data.shape[0], offX:offX+data.shape[1] ], data )
     return img
 
@@ -445,6 +445,7 @@ class DataGenerator(tensorflow.keras.utils.Sequence): # TODO VIGILANTE
             frame = self.augmentation.before_cut(frame, roi)
             roi = self.augmentation.augment_roi(roi)
         img = cut(frame, roi)
+        # TODO apply face_alignment to img
         
         if self.augmentation is not None:
             img = self.augmentation.after_cut(img)
