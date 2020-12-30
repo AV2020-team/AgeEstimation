@@ -63,4 +63,4 @@ Wand==0.6.1
 Werkzeug==1.0.1
 wrapt==1.12.1
 zipp==3.1.0
-
+setuptools~=51.1.0
