@@ -5,3 +5,4 @@
 /dataset/cache
 /dataset/face_models
 /dataset/__pycache__
+.pylintrc
