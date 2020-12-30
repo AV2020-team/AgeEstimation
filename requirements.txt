@@ -64,3 +64,4 @@ Werkzeug==1.0.1
 wrapt==1.12.1
 zipp==3.1.0
 setuptools~=51.1.0
+omegaconf==2.0.5

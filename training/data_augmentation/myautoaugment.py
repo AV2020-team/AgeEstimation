@@ -1,6 +1,7 @@
 import random
 import numpy as np
-from transformation import apply_policy
+from data_augmentation.transformation import apply_policy
+import random
 
 
 def randomize_policies(policies):

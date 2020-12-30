@@ -294,9 +294,6 @@ def apply_policy(policy, img):
         assert len(xform) == 3
         name, probability, level = xform
         if random.random() < probability:
-            print('y', xform)
             pil_img = apply_augment(pil_img, name, level)
-        else:
-            print('n', xform)
     pil_img = pil_img.convert('RGB')
     return pil_unwrap(pil_img)

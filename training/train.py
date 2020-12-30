@@ -1,10 +1,10 @@
 import argparse
 
 available_nets = ['senet50', 'vgg16', 'densenet121bc', 'xception', 'xception71', 'mobilenet96', 'mobilenet224',
-                  'mobilenet64_bio', 'shufflenet224', 'squeezenet']
+                  'mobilenet64_bio', 'shufflenet224', 'squeezenet', 'efficientnetb3', 'resnet50']
 
 available_normalizations = ['z_normalization', 'full_normalization', 'vggface2']
-available_augmentations = ['default', 'vggface2', 'autoaugment-rafdb', 'no']
+available_augmentations = ['default', 'vggface2', 'autoaugment-rafdb', 'no', 'myautoaugment']
 available_modes = ['train', 'training', 'test', 'train_inference', 'test_inference']
 available_lpf = [0, 1, 2, 3, 5, 7]
 
@@ -28,6 +28,8 @@ parser.add_argument('--resume', type=bool, default=False, help='resume training'
 parser.add_argument('--pretraining', type=str, default=None, help='Pretraining weights, do not set for None, can be vggface or imagenet or a file')
 parser.add_argument('--preprocessing', type=str, default='full_normalization', choices=available_normalizations)
 parser.add_argument('--augmentation', type=str, default='default', choices=available_augmentations)
+parser.add_argument('--validation_steps', type=int, default=None)
+parser.add_argument('--steps_per_epoch', type=int, default=None)
 
 args = parser.parse_args()
 
@@ -46,12 +48,12 @@ import time
 from center_loss import center_loss
 from datetime import datetime
 from model_build import senet_model_build, vgg16_keras_build, vggface_custom_build, mobilenet_224_build,\
-mobilenet_96_build, mobilenet_64_build, squeezenet_build, shufflenet_224_build, xception_build, densenet_121_build
+mobilenet_96_build, mobilenet_64_build, squeezenet_build, shufflenet_224_build, xception_build, densenet_121_build, efficientnetb3_224_build
 
 
-if args.dataset == 'vggface2_gender':
+if args.dataset == 'vggface2_age':
     sys.path.append("../dataset")
-    from vgg2_dataset_gender import Vgg2DatasetAge as Dataset, NUM_CLASSES
+    from vgg2_dataset_age import Vgg2DatasetAge as Dataset, NUM_CLASSES
 else:
     print('unknown dataset %s' % args.dataset)
     exit(1)
@@ -113,6 +115,9 @@ def get_model():
     elif args.net == "squeezenet":
         INPUT_SHAPE = (224, 224, 3)
         return squeezenet_build(INPUT_SHAPE, NUM_CLASSES, args.pretraining)
+    elif args.net == "efficientnetb3":
+        INPUT_SHAPE = (224, 224, 3)
+        return efficientnetb3_224_build(INPUT_SHAPE, NUM_CLASSES, args.pretraining)
 
 
 # Model creating
@@ -200,6 +205,11 @@ elif args.augmentation == 'default':
 elif args.augmentation == 'vggface2':
     from dataset_tools import VGGFace2Augmentation
     custom_augmentation = VGGFace2Augmentation()
+elif args.augmentation == 'myautoaugment':
+    sys.path.append("./data_augmentation")
+    from myautoaugment import MyAutoAugmentation
+    from policies import blur_policies, noise_policies, standard_policies
+    custom_augmentation = MyAutoAugmentation(standard_policies, blur_policies, noise_policies)
 else:
     custom_augmentation = None
 

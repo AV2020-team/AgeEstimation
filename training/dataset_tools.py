@@ -6,6 +6,7 @@ import os
 import numpy as np
 import h5py
 import dlib
+from math import ceil, floor
 
 
 def _print_debug_yes(s):
@@ -505,6 +506,7 @@ class DataGenerator(tensorflow.keras.utils.Sequence):  # TODO VIGILANTE
             img = mean_std_normalize(img, self.ds_means, self.ds_stds)
         if self.target_shape[2] == 3 and (len(img.shape) < 3 or img.shape[2] < 3):
             img = np.repeat(np.squeeze(img)[:, :, None], 3, axis=2)
+        return img
 
     def _load_item(self, d):
         roi = [int(x) for x in d['roi']]
@@ -520,11 +522,13 @@ class DataGenerator(tensorflow.keras.utils.Sequence):  # TODO VIGILANTE
                 print('ERROR: Unable to read image %s' % d['img'])
                 return None
 
-        self._preprocessing(frame, roi)
+        img = self._preprocessing(frame, roi)
 
         if self.fullinfo:
             return (img, label, d['img'], roi)
-        return (img, label)
+        base_label = [0] * self.num_classes
+        base_label[int(label - 1)] += 1
+        return (img, base_label)
 
     def _get_item_from_hdf(self, d):
         index = d["index"]
@@ -542,7 +546,7 @@ class DataGenerator(tensorflow.keras.utils.Sequence):  # TODO VIGILANTE
             print('ERROR: Unable to read image %s' % hdf_d['img'].value)
             return None
 
-        self._preprocessing(frame, roi)
+        img = self._preprocessing(frame, roi)
 
         if self.fullinfo:
             return (img, label, hdf_d['img'].value, roi, hdf_d['part'].value)
