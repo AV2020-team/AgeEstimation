@@ -287,6 +287,15 @@ def pil_unwrap(pil_img):
     return pil_unwrapped
 
 
+def img_to_min_size(img, size=(32,32)):
+    if img.size[0] < size[0]:
+        img = img.resize((size[0], img.size[1]), Image.LANCZOS)
+    if img.size[1] < size[1]:
+        img = img.resize((img.size[0], size[1]), Image.LANCZOS)
+
+    return img
+
+
 def apply_policy(policy, img):
     pil_img = pil_wrap(img)
 
@@ -294,6 +303,7 @@ def apply_policy(policy, img):
         assert len(xform) == 3
         name, probability, level = xform
         if random.random() < probability:
+            pil_img = img_to_min_size(pil_img, (32, 32))
             pil_img = apply_augment(pil_img, name, level)
     pil_img = pil_img.convert('RGB')
     return pil_unwrap(pil_img)

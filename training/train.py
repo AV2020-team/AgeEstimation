@@ -1,3 +1,6 @@
+import warnings
+warnings.filterwarnings("ignore")
+
 import argparse
 
 available_nets = ['senet50', 'vgg16', 'densenet121bc', 'xception', 'xception71', 'mobilenet96', 'mobilenet224',

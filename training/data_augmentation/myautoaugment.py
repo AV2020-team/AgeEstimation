@@ -2,6 +2,7 @@ import random
 import numpy as np
 from data_augmentation.transformation import apply_policy
 import random
+import cv2
 
 
 def randomize_policies(policies):
@@ -33,6 +34,7 @@ class MyAutoAugmentation():
             random.choice(self.noise_policies)
         ])
         self.current_policy = str(policy)
+
         img = apply_policy(policy, img)
 
         if len(img.shape) == 2:

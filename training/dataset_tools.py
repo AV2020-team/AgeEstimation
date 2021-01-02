@@ -527,32 +527,32 @@ class DataGenerator(tensorflow.keras.utils.Sequence):  # TODO VIGILANTE
         if self.fullinfo:
             return (img, label, d['img'], roi)
         base_label = [0] * self.num_classes
-        base_label[int(label - 1)] += 1
+        base_label[round(label - 1)] += 1
         return (img, base_label)
 
     def _get_item_from_hdf(self, d):
         index = d["index"]
         hdf_d = self.hdf[str(index)]
-        roi = [int(x) for x in hdf_d['roi'].value]
-        label = hdf_d['label'].value
+        roi = [int(x) for x in hdf_d['roi'][()]]
+        label = hdf_d['label'][()]
 
         if self.num_classes is not None and isinstance(label, int):
             label = np.array(keras.utils.to_categorical(label, num_classes=self.num_classes))
-        frame = hdf_d['img_bin'].value
+        frame = hdf_d['img_bin'][()]
 
         # if isinstance(frame, str): check if frame is np byte array
         frame = cv2.imdecode(np.frombuffer(frame, np.uint8), cv2.IMREAD_COLOR)
         if frame is None:
-            print('ERROR: Unable to read image %s' % hdf_d['img'].value)
+            print('ERROR: Unable to read image %s' % hdf_d['img'][()])
             return None
 
         img = self._preprocessing(frame, roi)
 
         if self.fullinfo:
-            return (img, label, hdf_d['img'].value, roi, hdf_d['part'].value)
+            return (img, label, hdf_d['img'][()], roi, hdf_d['part'][()], index)
 
         base_label = [0] * self.num_classes
-        base_label[int(hdf_d['label'].value) - 1] += 1
+        base_label[round(hdf_d['label'][()]) - 1] += 1
         return (img, base_label)
 
     def _load(self, index):

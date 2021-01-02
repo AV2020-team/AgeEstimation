@@ -11,6 +11,8 @@ import h5py
 
 from vgg2_utils import get_id_from_vgg2, PARTITION_TEST, PARTITION_VAL, PARTITION_TRAIN
 from hdf5_loader import save_dict_to_hdf5
+from data_augmentation.myautoaugment import MyAutoAugmentation
+from data_augmentation.policies import standard_policies, blur_policies, noise_policies
 
 sys.path.append("../training")
 from dataset_tools import enclosing_square, add_margin, DataGenerator, VGGFace2Augmentation
@@ -267,11 +269,11 @@ class Vgg2DatasetAge:
                 print("Pickle dumping")
                 pickle.dump(self.data, f)
 
-    def get_generator(self, batch_size=64):
+    def get_generator(self, batch_size=64, fullinfo=False):
         if self.gen is None:
             self.gen = DataGenerator(self.data, self.target_shape, with_augmentation=self.augment,
                                      custom_augmentation=self.custom_augmentation, batch_size=batch_size,
-                                     num_classes=self.get_num_classes(), preprocessing=self.preprocessing)
+                                     num_classes=self.get_num_classes(), preprocessing=self.preprocessing, fullinfo=fullinfo, hdf=self.hdf)
         return self.gen
 
     def get_num_classes(self):
@@ -280,7 +282,26 @@ class Vgg2DatasetAge:
     def get_num_samples(self):
         return len(self.data)
 
-
+def augment_dataset_to_hdf5(partition="train"):
+    hdf5_file = h5py.File("augmented_dataset.hdf5", 'w', swmr=True)
+    custom_augmentation = MyAutoAugmentation(standard_policies, blur_policies, noise_policies)
+    dt = Vgg2DatasetAge(partition, target_shape=(224, 224, 3), augment=True, preprocessing='full_normalization', custom_augmentation=custom_augmentation)
+    gen = dt.get_generator(128, fullinfo=True)
+    for batch in tqdm(gen):
+        #(img, label, hdf_d['img'].value (path), roi, hdf_d['part'].value, index)
+        for img, label, path, roi, partition, index in zip(batch[0], batch[1], batch[2], batch[3], batch[4], batch[5]):
+            img_bin = cv2.imencode('.jpg', img)[1]
+            example = {
+                        str(index): { #path non funziona, a meno che non si fa un replace degli /
+                            'index': str(index),
+                            'img': str(path),
+                            'label': np.float64(label),
+                            'roi': np.asarray(roi),
+                            'part': np.int64(partition),
+                            'img_bin': np.asarray(img_bin)
+                        }
+            }
+            save_dict_to_hdf5(example, h5file=hdf5_file)
 
 def test1(dataset="test", debug_samples=None):
     global people_by_age
@@ -314,7 +335,7 @@ def test1(dataset="test", debug_samples=None):
         print("SAMPLES %d" % dv.get_num_samples())
         print('Now generating from test set')
         gen = dv.get_generator()
-
+    return
     i = 0
     while True:
         print(i)
@@ -324,8 +345,8 @@ def test1(dataset="test", debug_samples=None):
                 facemax = np.max(im)
                 facemin = np.min(im)
                 im = (255 * ((im - facemin) / (facemax - facemin))).astype(np.uint8)
-                cv2.putText(im, "%.2f" % age, (0, im.shape[1]),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255))
+                #cv2.putText(im, "%.2f" % age, (0, im.shape[1]),
+                            #cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255))
                 cv2.imshow('vggface2 image', im)
                 if cv2.waitKey(0) & 0xFF == ord('q'):
                     cv2.destroyAllWindows()
@@ -333,8 +354,9 @@ def test1(dataset="test", debug_samples=None):
 
 
 if '__main__' == __name__:
-    test1("train")
-    # test1("val")
+    #test1("train")
+    augment_dataset_to_hdf5("train")
+    #test1("val")
     # test1("test", 2_000)
     
     # test1("train") # cache
