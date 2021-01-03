@@ -18,7 +18,7 @@ parser.add_argument('--center_loss', action='store_true', help='use center loss'
 parser.add_argument('--weight_decay', type=float)
 parser.add_argument('--lr', default='0.002', help='Initial learning rate or init:factor:epochs', type=str)
 parser.add_argument('--momentum', action='store_true')
-parser.add_argument('--dataset', dest='dataset', type=str, default="vggface2_gender", help='dataset to use for the training')
+parser.add_argument('--dataset', dest='dataset', type=str, default="vggface2_age", help='dataset to use for the training')
 parser.add_argument('--mode', dest='mode', type=str,choices=available_modes, default='train', help='train or test')
 parser.add_argument('--epoch', dest='test_epoch', type=int, default=None, help='epoch to be used for testing, mandatory if mode=test')
 parser.add_argument('--training-epochs', dest='n_training_epochs', type=int, default=220, help='epoch to be used for training, default 220')

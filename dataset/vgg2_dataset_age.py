@@ -6,7 +6,7 @@ import pickle
 import numpy as np
 import csv
 import sys
-
+import argparse
 import h5py
 
 from vgg2_utils import get_id_from_vgg2, PARTITION_TEST, PARTITION_VAL, PARTITION_TRAIN
@@ -16,6 +16,11 @@ from data_augmentation.policies import standard_policies, blur_policies, noise_p
 
 sys.path.append("../training")
 from dataset_tools import enclosing_square, add_margin, DataGenerator, VGGFace2Augmentation
+
+parser = argparse.ArgumentParser(description='Dataset HDF5 generation')
+parser.add_argument('--number', type=int, default=-1, help='identifier for db')
+args = parser.parse_args()
+
 
 EXT_ROOT = os.path.dirname(os.path.abspath(__file__))
 CACHE_DIR = "cache"
@@ -33,7 +38,7 @@ MAX_AGE = 82
 vgg2age = None
 age2vgg = None
 
-MAX_DATASET_DIMENSION = 1_000_000
+MAX_DATASET_DIMENSION = 500_000
 MAX_SAMPLES_PER_AGE = MAX_DATASET_DIMENSION // (MAX_AGE - MIN_AGE + 1)
 
 def _load_identities(agecsv):
@@ -224,7 +229,7 @@ class Vgg2DatasetAge:
         print('Loading %s data...' % partition)
 
         num_samples = '_' + str(debug_max_num_samples) if debug_max_num_samples is not None else ''
-        cache_file_name = 'vggface2_gender_{partition}{num_samples}.cache'.format(partition=partition, num_samples=num_samples)
+        cache_file_name = 'vggface2_age_{partition}{num_samples}.cache'.format(partition=partition, num_samples=num_samples)
         hdf5_file_name = f"test_{num_samples}.hdf5" if partition_label == PARTITION_TEST else f"train_val{num_samples}.hdf5"
         cache_root = os.path.join(EXT_ROOT, CACHE_DIR)
         hdf5_root = os.path.join(EXT_ROOT, HDF5_DIR)
@@ -282,10 +287,16 @@ class Vgg2DatasetAge:
     def get_num_samples(self):
         return len(self.data)
 
-def augment_dataset_to_hdf5(partition="train"):
-    hdf5_file = h5py.File("augmented_dataset.hdf5", 'w', swmr=True)
+def augment_dataset_to_hdf5(partition="train", number=0):
     custom_augmentation = MyAutoAugmentation(standard_policies, blur_policies, noise_policies)
-    dt = Vgg2DatasetAge(partition, target_shape=(224, 224, 3), augment=True, preprocessing='full_normalization', custom_augmentation=custom_augmentation)
+    if partition.startswith("train"):
+        hdf5_file = h5py.File(f"augmented_dataset_{number}.hdf5", 'w', swmr=True)
+        dt = Vgg2DatasetAge(partition, target_shape=(224, 224, 3), augment=True, preprocessing='full_normalization', custom_augmentation=custom_augmentation)
+    elif partition.startswith("val"):
+        hdf5_file = h5py.File(f"augmented_dataset_{number}.hdf5", 'a', swmr=True)
+        dt = Vgg2DatasetAge(partition, target_shape=(224, 224, 3), augment=False, preprocessing='full_normalization')
+    else:
+        return
     gen = dt.get_generator(128, fullinfo=True)
     for batch in tqdm(gen):
         #(img, label, hdf_d['img'].value (path), roi, hdf_d['part'].value, index)
@@ -302,6 +313,8 @@ def augment_dataset_to_hdf5(partition="train"):
                         }
             }
             save_dict_to_hdf5(example, h5file=hdf5_file)
+    hdf5_file.close()
+    return
 
 def test1(dataset="test", debug_samples=None):
     global people_by_age
@@ -335,7 +348,7 @@ def test1(dataset="test", debug_samples=None):
         print("SAMPLES %d" % dv.get_num_samples())
         print('Now generating from test set')
         gen = dv.get_generator()
-    return
+        
     i = 0
     while True:
         print(i)
@@ -354,10 +367,13 @@ def test1(dataset="test", debug_samples=None):
 
 
 if '__main__' == __name__:
-    #test1("train")
-    augment_dataset_to_hdf5("train")
-    #test1("val")
-    # test1("test", 2_000)
+    test1("train")
+    #print(f"Generating dataset: {args.number}")
+    #augment_dataset_to_hdf5("train", number=args.number)
+    #augment_dataset_to_hdf5("val", number=args.number)
+
+    # test1("val")
+    # test1("test")
     
     # test1("train") # cache
     # test1("val") # cache
