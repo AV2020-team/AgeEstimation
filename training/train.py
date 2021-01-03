@@ -66,7 +66,7 @@ else:
 lr = args.lr.split(':')
 initial_learning_rate = float(lr[0])  # 0.002
 learning_rate_decay_factor = float(lr[1]) if len(lr) > 1 else 0.5
-learning_rate_decay_epochs = int(lr[2]) if len(lr) > 2 else 40
+learning_rate_patience = int(lr[2]) if len(lr) > 2 else 5
 
 # Epochs to train
 n_training_epochs = args.n_training_epochs
@@ -75,11 +75,21 @@ n_training_epochs = args.n_training_epochs
 batch_size = args.batch_size
 
 
-def step_decay_schedule(initial_lr, decay_factor, step_size):
-    def schedule(epoch):
-        return initial_lr * (decay_factor ** np.floor(epoch / step_size))
+def reduce_lr_on_plateau(decay_factor=0.5, patience=10):
+	# Learning Rate
+	monitor = "val_loss"
+	verbose = 1
+	mode = "min"
+	min_delta = 0.01
 
-    return keras.callbacks.LearningRateScheduler(schedule, verbose=1)
+	return keras.callbacks.ReduceLROnPlateau(
+		monitor=monitor,
+		factor=decay_factor,
+		patience=patience,
+		verbose=verbose,
+		mode=mode,
+		min_delta=min_delta
+	)
 
 
 # Model building
@@ -146,6 +156,12 @@ def age_mae(y_true, y_pred):
     mae = K.mean(K.abs(true_age - pred_age))
     return mae
 
+def age_mse(y_true, y_pred):
+    true_age = K.sum(y_true * K.arange(0, NUM_CLASSES, dtype="float32"), axis=-1)
+    pred_age = K.sum(y_pred * K.arange(0, NUM_CLASSES, dtype="float32"), axis=-1)
+    mse = tf.keras.losses.mean_squared_error(true_age, pred_age)
+    return mse
+
 # model compiling
 if args.weight_decay:
     weight_decay = args.weight_decay  # 0.0005
@@ -155,13 +171,13 @@ if args.weight_decay:
             layer.add_loss(lambda: keras.regularizers.l2(weight_decay)(layer.kernel))
         if hasattr(layer, 'bias_regularizer') and layer.use_bias:
             layer.add_loss(lambda: keras.regularizers.l2(weight_decay)(layer.bias))
-optimizer = keras.optimizers.SGD(momentum=0.9) if args.momentum else 'sgd'
+optimizer = keras.optimizers.SGD(learning_rate=initial_learning_rate, momentum=0.9) if args.momentum else keras.optimizers.SGD(learning_rate=initial_learning_rate)
 if args.center_loss:
     loss = center_loss(feature_layer, keras.losses.categorical_crossentropy, 0.9, NUM_CLASSES, 0.01, features_dim=2048)
 else:
     loss = keras.losses.categorical_crossentropy if NUM_CLASSES > 1 else keras.losses.mean_squared_error
 accuracy_metrics = [keras.metrics.categorical_accuracy] if NUM_CLASSES > 1 else [keras.metrics.mean_squared_error]
-model.compile(loss=loss, optimizer=optimizer, metrics=[age_mae])
+model.compile(loss=loss, optimizer=optimizer, metrics=[age_mae,age_mse])
 
 
 # Directory creating to store model checkpoints
@@ -170,7 +186,7 @@ dirnm = "inference_time_test" if args.mode.endswith('inference') else "trained"
 dirnm = os.path.join("..", dirnm)
 if not os.path.isdir(dirnm): os.mkdir(dirnm)
 argstring = ''.join(sys.argv[1:]).replace('--', '_').replace('=', '').replace(':', '_')
-dirnm += '/%s_%s' % (argstring, datetime)
+dirnm += '/%s' % (argstring)
 if args.cutout: dirnm += '_cutout'
 if args.dir: dirnm = args.dir
 if not os.path.isdir(dirnm): os.mkdir(dirnm)
@@ -222,7 +238,7 @@ if args.mode.startswith('train'):
     dataset_training = Dataset('train', target_shape=INPUT_SHAPE, augment=False, preprocessing=args.preprocessing, custom_augmentation=custom_augmentation)
     dataset_validation = Dataset('val', target_shape=INPUT_SHAPE, augment=False, preprocessing=args.preprocessing)
 
-    lr_sched = step_decay_schedule(initial_lr=initial_learning_rate,decay_factor=learning_rate_decay_factor, step_size=learning_rate_decay_epochs)
+    lr_sched = reduce_lr_on_plateau(decay_factor=learning_rate_decay_factor, patience=learning_rate_patience)
     monitor = 'val_categorical_accuracy' if NUM_CLASSES > 1 else 'val_mean_squared_error'
     checkpoint = keras.callbacks.ModelCheckpoint(filepath, verbose=1, save_best_only=False, monitor=monitor)
     tbCallBack = keras.callbacks.TensorBoard(log_dir=logdir, write_graph=True, write_images=True)
@@ -231,21 +247,27 @@ if args.mode.startswith('train'):
     if args.mode == "train_inference":
         batch_size = 1
 
+    initial_epoch = 0
     if args.resume:
         pattern = filepath.replace('{epoch:02d}', '*')
-        epochs = glob(pattern)
-        print(pattern)
+        epochs = glob(os.path.join(dirnm, "*"))
+        print(dirnm)
         print(epochs)
-        epochs = [int(x[-8:-5].replace('.', '')) for x in epochs]
-        initial_epoch = max(epochs)
+        epochs = [e for e in epochs if "hdf5" in e]
+        checkpoints = []
+        for x in epochs:
+            try:
+                checkpoints.append(int(x[-8:-5].replace('.', '')))
+            except ValueError:
+                continue
+        if len(checkpoints) != 0:
+            initial_epoch = max(epochs)
         print('Resuming from epoch %d...' % initial_epoch)
-        model.load_weights(filepath.format(epoch=initial_epoch))
-    else:
-        initial_epoch = 0
+            model.load_weights(filepath.format(epoch=initial_epoch))
 
     model.fit_generator(generator=dataset_training.get_generator(batch_size),
                         validation_data=dataset_validation.get_generator(batch_size),
-                        verbose=1, callbacks=callbacks_list, epochs=n_training_epochs, workers=8,
+                        verbose=1, callbacks=callbacks_list, epochs=n_training_epochs, workers=32,
                         initial_epoch=initial_epoch)
     if args.mode == "train_inference":
         print("Warning: TEST ON CPU")
@@ -271,4 +293,3 @@ elif args.mode == 'test':
     evalds('test')
     evalds('val')
     evalds('train')
-
