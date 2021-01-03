@@ -10,18 +10,22 @@ import cv2
 random_mirror = True
 
 
-def ShearX(img, v):  # [-0.3, 0.3]
-    assert -0.3 <= v <= 0.3
+def ShearX(img, v):  # [-15, 15]
+    assert -15 <= v <= 15
     if random_mirror and random.random() > 0.5:
         v = -v
-    return img.transform(img.size, PIL.Image.AFFINE, (1, v, 0, 0, 1, 0))
+    aug = iaa.ShearX(v)
+    img = aug(images=[img])[0]
+    return img
 
 
-def ShearY(img, v):  # [-0.3, 0.3]
-    assert -0.3 <= v <= 0.3
+def ShearY(img, v):  # [-15, 15]
+    assert -15 <= v <= 15
     if random_mirror and random.random() > 0.5:
         v = -v
-    return img.transform(img.size, PIL.Image.AFFINE, (1, 0, 0, v, 1, 0))
+    aug = iaa.ShearY(v)
+    img = aug(images=[img])[0]
+    return img
 
 
 def TranslateX(img, v):  # [-150, 150] => percentage: [-0.45, 0.45]
@@ -58,11 +62,15 @@ def Rotate(img, v):  # [-30, 30]
     assert -30 <= v <= 30
     if random_mirror and random.random() > 0.5:
         v = -v
-    return img.rotate(v)
+    aug = iaa.Rotate(v)
+    img = aug(images=[img])[0]
+    return img
 
 
 def AutoContrast(img, _):
-    return PIL.ImageOps.autocontrast(img)
+    aug = iaa.pillike.Autocontrast()
+    img = aug(images=[img])[0]
+    return img
 
 
 def Invert(img, _):
@@ -74,7 +82,9 @@ def Equalize(img, _):
 
 
 def Flip(img, _):  # not from the paper
-    return PIL.ImageOps.mirror(img)
+    aug = iaa.Fliplr(1)
+    img = aug(images=[img])[0]
+    return img
 
 
 def Solarize(img, v):  # [0, 256]
@@ -106,7 +116,9 @@ def Color(img, v):  # [0.1,1.9]
 
 def Brightness(img, v):  # [0.1,1.9]
     assert 0.1 <= v <= 1.9
-    return PIL.ImageEnhance.Brightness(img).enhance(v)
+    aug = iaa.pillike.EnhanceBrightness(factor=v)
+    img = aug(images=[img])[0]
+    return img
 
 
 def Sharpness(img, v):  # [0.1,1.9]
@@ -116,10 +128,8 @@ def Sharpness(img, v):  # [0.1,1.9]
 
 def Cutout(img, v):  # [0.1, 0.15]
     assert 0.05 <= v <= 0.15
-    img = pil_unwrap(img)
     aug = iaa.Cutout(nb_iterations=(1, 3), size=v, squared=False)
     img = aug(images=[img])[0]
-    img = pil_wrap(img)
     return img
 
 
@@ -149,79 +159,64 @@ def SamplePairing(imgs):  # [0, 0.4]
         i = np.random.choice(len(imgs))
         img2 = PIL.Image.fromarray(imgs[i])
         return PIL.Image.blend(img1, img2, v)
-
     return f
 
 
 def Crop(img, v):  # [0, 0.4]
     assert 0.1 <= v <= 0.4
-    img = pil_unwrap(img)
     aug = iaa.Crop(percent=(iap.Uniform(0, v), iap.Uniform(0, v), iap.Uniform(0, v), iap.Uniform(0, v)))
     img = aug(images=[img])[0]
-    img = pil_wrap(img)
     return img
 
 
 def JPEGCompression(img, v):  # [0, 70]
     assert 0 <= v <= 70
-    img = pil_unwrap(img)
     aug = iaa.JpegCompression(compression=v)
     img = aug(images=[img])[0]
-    img = pil_wrap(img)
     return img
 
 
 def SaltAndPepper(img, v):  # [0, 0.05]
     assert 0 <= v <= 0.05
-    img = pil_unwrap(img)
     aug = iaa.SaltAndPepper(v)
     img = aug(images=[img])[0]
-    img = pil_wrap(img)
     return img
 
 
 def GaussianNoise(img, v):  # [1, 2]
     assert 1 <= v <= 2
-    img = pil_unwrap(img)
     aug = iaa.imgcorruptlike.GaussianNoise(severity=v)
     img = aug(images=[img])[0]
-    img = pil_wrap(img)
     return img
 
 
 def MotionBlur(img, v):  # [1.0, 2]
     v = round(v)
     assert 1 <= v <= 5
-    img = pil_unwrap(img)
     aug = iaa.imgcorruptlike.MotionBlur(severity=v)
     img = aug(images=[img])[0]
-    img = pil_wrap(img)
     return img
 
 
 def ZoomBlur(img, v):  # [1, 5]
     v = round(v)
     assert 1 <= v <= 5
-    img = pil_unwrap(img)
     aug = iaa.imgcorruptlike.ZoomBlur(severity=v)
     img = aug(images=[img])[0]
-    img = pil_wrap(img)
     return img
 
 
 def GaussianBlur(img, v):  # [0, 5]
     assert 0 <= v <= 5
-    img = pil_unwrap(img)
     aug = iaa.GaussianBlur(sigma=v)
     img = aug(images=[img])[0]
-    img = pil_wrap(img)
     return img
 
 
 def augment_list(for_autoaug=True):  # 16 oeprations and their ranges
     l = [
-        (ShearX, -0.3, 0.3),  # 0
-        (ShearY, -0.3, 0.3),  # 1
+        (ShearX, -15, 15),  # 0
+        (ShearY, -15, 15),  # 1
         (TranslateX, -0.45, 0.45),  # 2
         (TranslateY, -0.45, 0.45),  # 3
         (Rotate, -30, 30),  # 4
@@ -267,43 +262,20 @@ def apply_augment(img, name, level):
     return augment_fn(img.copy(), level * (high - low) + low)
 
 
-def pil_wrap(img):
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    if len(img.shape) == 3 and img.shape[2] == 1:
-        img = np.squeeze(img, 2)
-    return Image.fromarray(img)
-
-
-def pil_unwrap(pil_img):
-    dim1 = pil_img.size[0]
-    dim2 = pil_img.size[1]
-    n = len(pil_img.split())
-    pic_array = np.array(list(pil_img.getdata()))
-    resh_array = np.reshape(pic_array, (dim2, dim1, n))
-    pil_unwrapped = resh_array.clip(0, 255).astype(np.uint8)
-    if n == 3:
-        r, g, b = cv2.split(pil_unwrapped)
-        pil_unwrapped = cv2.merge((b, g, r))
-    return pil_unwrapped
-
-
-def img_to_min_size(img, size=(32,32)):
-    if img.size[0] < size[0]:
-        img = img.resize((size[0], img.size[1]), Image.LANCZOS)
-    if img.size[1] < size[1]:
-        img = img.resize((img.size[0], size[1]), Image.LANCZOS)
+def img_to_min_size(img, shape=(32,32)):
+    if img.shape[1] < shape[0]:  # reshape width
+        img = cv2.resize(img, (shape[0], img.shape[0]))
+    if img.shape[0] < shape[1]:  # reshape height
+        img = cv2.resize(img, (img.shape[1], shape[1]))
 
     return img
 
 
 def apply_policy(policy, img):
-    pil_img = pil_wrap(img)
-
     for xform in policy:
         assert len(xform) == 3
         name, probability, level = xform
         if random.random() < probability:
-            pil_img = img_to_min_size(pil_img, (32, 32))
-            pil_img = apply_augment(pil_img, name, level)
-    pil_img = pil_img.convert('RGB')
-    return pil_unwrap(pil_img)
+            img = img_to_min_size(img, (32, 32))
+            img = apply_augment(img, name, level)
+    return img
