@@ -262,7 +262,7 @@ if args.mode.startswith('train'):
                 continue
         if len(checkpoints) != 0:
             initial_epoch = max(epochs)
-        print('Resuming from epoch %d...' % initial_epoch)
+            print('Resuming from epoch %d...' % initial_epoch)
             model.load_weights(filepath.format(epoch=initial_epoch))
 
     model.fit_generator(generator=dataset_training.get_generator(batch_size),
