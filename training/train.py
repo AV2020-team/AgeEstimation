@@ -261,7 +261,7 @@ if args.mode.startswith('train'):
             except ValueError:
                 continue
         if len(checkpoints) != 0:
-            initial_epoch = max(epochs)
+            initial_epoch = max(checkpoints)
             print('Resuming from epoch %d...' % initial_epoch)
             model.load_weights(filepath.format(epoch=initial_epoch))
 
