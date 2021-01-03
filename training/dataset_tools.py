@@ -499,7 +499,7 @@ class DataGenerator(tensorflow.keras.utils.Sequence):  # TODO VIGILANTE
             if np.abs(np.min(img) - np.max(img)) < 1:
                 print("WARNING: Image is =%d" % np.min(img))
             else:
-                img = mean_std_normalize(img)
+                img = mean_std_normalize(img, means=VGGFACE2_MEANS)
         elif self.preprocessing == 'z_normalization':
             img = mean_std_normalize(img, self.ds_means, self.ds_stds)
         elif self.preprocessing == 'vggface2':
