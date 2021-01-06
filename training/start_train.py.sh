@@ -16,4 +16,5 @@ python3 train.py \
 --sel_gpu 0 \
 --training-epochs 70 \
 --weight_decay 0.005 \
---momentum
+--momentum \
+--resume True

@@ -33,6 +33,7 @@ parser.add_argument('--preprocessing', type=str, default='full_normalization', c
 parser.add_argument('--augmentation', type=str, default='default', choices=available_augmentations)
 parser.add_argument('--validation_steps', type=int, default=None)
 parser.add_argument('--steps_per_epoch', type=int, default=None)
+parser.add_argument('--trained_weights', type=str, default=None)
 
 args = parser.parse_args()
 
@@ -281,7 +282,7 @@ elif args.mode == 'test':
         args.test_epoch, _ = _find_latest_checkpoint(dirnm)
         print("Using epoch %d" % args.test_epoch)
     #model.load_weights(filepath.format(epoch=int(args.test_epoch)))
-    model.load_weights(os.path.join(dirnm, args.pretraining))
+    model.load_weights(os.path.join(dirnm, args.trained_weights))
 
     # TODO : add test_inference mode 
     
@@ -308,8 +309,8 @@ elif args.mode == 'test':
                     results[path] = model.predict(frame)
                     """
                     human_img = cv2.imread(abs_path)
-                    human_img = cv2.resize(human_img, INPUT_SHAPE[:2])
-                    cv2.putText(human_img, "%.2f" % (np.argmax(results[path]) + 1), (1, human_img.shape[1] - 10),
+                    human_img = cv2.resize(human_img, (300,300) )
+                    cv2.putText(human_img, "%.2f" % (np.argmax(results[path])), (1, human_img.shape[1] - 10),
                             cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 8)
                     cv2.imshow('vggface2 image', human_img)
                     fig = plt.figure()
@@ -333,12 +334,12 @@ elif args.mode == 'test':
             print("Pickle dumping")
             pickle.dump(results, f)
 
-        lines = []
         with open(os.path.join(dirnm, "results.csv"), 'w') as f:
             writer = csv.writer(f, delimiter=',')
             for image, res in tqdm(results.items()):
-                writer.writerow([image,(np.argmax(res) + 1)])
+                writer.writerow([image,(np.argmax(res))])
 
     evalds('test')
     #evalds('val')
     #evalds('train')
+
