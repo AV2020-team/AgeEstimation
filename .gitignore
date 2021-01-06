@@ -6,3 +6,6 @@
 /dataset/face_models
 /dataset/__pycache__
 .pylintrc
+*.hdf5
+*.cache
+*.pyc

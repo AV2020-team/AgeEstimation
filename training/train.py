@@ -33,7 +33,7 @@ parser.add_argument('--preprocessing', type=str, default='full_normalization', c
 parser.add_argument('--augmentation', type=str, default='default', choices=available_augmentations)
 parser.add_argument('--validation_steps', type=int, default=None)
 parser.add_argument('--steps_per_epoch', type=int, default=None)
-parser.add_argument('--trained_weights', type=str, default=None)
+parser.add_argument('--trained_weights', type=str, default=None, help='model filename to be used when performing inference on test set')
 
 args = parser.parse_args()
 
@@ -278,10 +278,8 @@ if args.mode.startswith('train'):
                             verbose=1, callbacks=callbacks_list, epochs=n_training_epochs, workers=8,
                             initial_epoch=initial_epoch)
 elif args.mode == 'test':
-    if args.test_epoch is None:
-        args.test_epoch, _ = _find_latest_checkpoint(dirnm)
-        print("Using epoch %d" % args.test_epoch)
-    #model.load_weights(filepath.format(epoch=int(args.test_epoch)))
+    if not os.path.isdir(dirnm): 
+        os.mkdir(dirnm)
     model.load_weights(os.path.join(dirnm, args.trained_weights))
 
     # TODO : add test_inference mode 
@@ -289,45 +287,15 @@ elif args.mode == 'test':
     def evalds(part):
         from tqdm import tqdm
         import csv
-
-        import cv2
-        import matplotlib.pyplot as plt
-        from matplotlib import interactive
-        interactive(True)
-        xs = [x for x in range(101)]
-
         print('Evaluating %s results...' % part)
         dataset = Dataset(part, target_shape=INPUT_SHAPE, augment=False, preprocessing=args.preprocessing)
         if part == 'test':
             gen = dataset.get_generator(batch_size=batch_size, fullinfo=True)
             results = {}
-            fig = plt.figure()
-
             for batch in tqdm(gen):
-                for img, abs_path, path in zip(batch[0], batch[1], batch[2]):
+                for img, path in zip(batch[0], batch[2]):
                     frame = np.reshape(img, [1] + list(INPUT_SHAPE))
                     results[path] = model.predict(frame)
-                    """
-                    human_img = cv2.imread(abs_path)
-                    human_img = cv2.resize(human_img, (300,300) )
-                    cv2.putText(human_img, "%.2f" % (np.argmax(results[path])), (1, human_img.shape[1] - 10),
-                            cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 8)
-                    cv2.imshow('vggface2 image', human_img)
-                    fig = plt.figure()
-                    plt.plot(xs, results[path][0])
-                    fig.canvas.draw()
-                    plot = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
-                    plot  = plot.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-                    plot = cv2.cvtColor(plot,cv2.COLOR_RGB2BGR)
-                    cv2.imshow("plot", plot)
-                    if cv2.waitKey(0) & 0xFF == ord('q'):
-                        cv2.destroyAllWindows()
-                        return
-                    """
-           
-        else:
-            results = model.evaluate_generator(dataset.get_generator(batch_size), verbose=1, workers=4)
-            print('%s results: loss %.3f - accuracy %.3f' % (part, results[0], results[1]))
 
         import pickle
         with open(os.path.join(dirnm, "results.dat"), 'wb') as f:
@@ -337,9 +305,6 @@ elif args.mode == 'test':
         with open(os.path.join(dirnm, "results.csv"), 'w') as f:
             writer = csv.writer(f, delimiter=',')
             for image, res in tqdm(results.items()):
-                writer.writerow([image,(np.argmax(res))])
+                writer.writerow([image, np.argmax(res)])
 
     evalds('test')
-    #evalds('val')
-    #evalds('train')
-
