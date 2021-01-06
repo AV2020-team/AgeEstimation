@@ -590,3 +590,90 @@ class DataGenerator(tensorflow.keras.utils.Sequence):  # TODO VIGILANTE
     # @property
     # def shape(self):
     #     return self.target_shape
+
+
+class DataTestGenerator(DataGenerator):
+
+    def __init__(
+                    self, 
+                    data, 
+                    target_shape, 
+                    batch_size=64, 
+                    preprocessing='full_normalization', 
+                    fullinfo=False, 
+                    hdf=None, 
+                    shape_predictor_path='resources/shape_predictor_68_face_landmarks.dat',
+                    has_roi=True,
+                    face_detector_model='resources/mmod_human_face_detector.dat',
+                ):
+        super().__init__( data, target_shape, with_augmentation=False, batch_size=batch_size, custom_augmentation=None,
+                 num_classes=None, preprocessing=preprocessing, fullinfo=fullinfo, hdf=hdf,
+                 shape_predictor_path=shape_predictor_path)
+        self.has_roi = has_roi
+        if not self.has_roi:
+            from vgg2_dataset_age import increase_roi
+            self.dnnFaceDetector = dlib.cnn_face_detection_model_v1(face_detector_model)
+        
+
+    def _preprocessing(self, img, roi=None):
+        if roi is None:
+            faces = self.dnnFaceDetector(img, 1)
+            face = max(faces, key=lambda d: (d.rect.right() - d.rect.left()) * (d.rect.bottom() - d.rect.top()))
+            roi = [face.rect.left(), face.rect.top(), face.rect.right() - face.rect.left(), face.rect.bottom()-face.rect.top()]
+            increase_roi(img.shape[1], img.shape[0], roi, 0.2)
+        img = cut(img, roi)
+        
+        img = face_alignment(img, self.shape_predictor)
+        # Preprocess the image for the network
+        img = cv2.resize(img, self.target_shape[0:2])
+        if self.preprocessing == 'full_normalization':
+            img = equalize_hist(img)
+            img = img.astype(np.float32)
+            img = linear_balance_illumination(img)
+            if np.abs(np.min(img) - np.max(img)) < 1:
+                print("WARNING: Image is =%d" % np.min(img))
+            else:
+                img = mean_std_normalize(img, means=VGGFACE2_MEANS)
+        elif self.preprocessing == 'z_normalization':
+            img = mean_std_normalize(img, self.ds_means, self.ds_stds)
+        elif self.preprocessing == 'vggface2':
+            img = mean_std_normalize(img, self.ds_means, self.ds_stds)
+        if self.target_shape[2] == 3 and (len(img.shape) < 3 or img.shape[2] < 3):
+            img = np.repeat(np.squeeze(img)[:, :, None], 3, axis=2)
+        return img
+
+    def _load_item(self, d):
+        frame = d['img']
+        roi = None
+
+        if isinstance(frame, str):
+            frame = cv2.imread(frame)
+            if frame is None:
+                print('ERROR: Unable to read image %s' % d['img'])
+                return None
+        
+        if self.has_roi:
+            roi = d['roi']
+        img = self._preprocessing(frame, roi)
+
+        if self.fullinfo:
+            return (img, d['img'], d['img_relative_path'], roi)
+        return (img, d['img_relative_path'])
+
+    def _get_item_from_hdf(self, d):
+        index = d['index']
+        hdf_d = self.hdf[str(index)]
+        frame = hdf_d['img_bin'][()]
+        roi = None
+
+        frame = cv2.imdecode(np.frombuffer(frame, np.uint8), cv2.IMREAD_COLOR)
+        if frame is None:
+            print('ERROR: Unable to read image %s' % hdf_d['img'][()])
+            return None
+        if self.has_roi:
+            roi = hdf_d['roi'][()]
+        img = self._preprocessing(frame, roi)
+        if self.fullinfo:
+            return (img, hdf_d['img'][()], hdf_d['img_relative_path'][()], roi)
+
+        return img # (img, hdf_d['img_relative_path'][()])
