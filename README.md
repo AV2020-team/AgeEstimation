@@ -12,12 +12,12 @@ Final project for Artificial Vision 2020/2021 - Group 10
 
 ### Training
 
-1. Open the [Google Colab Notebook](https://colab.research.google.com/drive/1gQ9vi4v3GxIAruQbz6h5aE_1zmVrpaMX?authuser=1)
+1. Open the [Google Colab Notebook](https://colab.research.google.com/drive/1k6KTvuoRmsA-V-VOnM6_fun61mBMdbJl?usp=sharing)
 2. Run all cells in sections 1 and 2
 
 ### Testing
 
-1. Open the [Google Colab Notebook](https://colab.research.google.com/drive/1gQ9vi4v3GxIAruQbz6h5aE_1zmVrpaMX?authuser=1)
+1. Open the [Google Colab Notebook](https://colab.research.google.com/drive/1k6KTvuoRmsA-V-VOnM6_fun61mBMdbJl?usp=sharing)
 2. Run all cells in sections 1 and 3
 
 ## Contents
