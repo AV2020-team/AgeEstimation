@@ -610,9 +610,8 @@ class DataTestGenerator(DataGenerator):
                  num_classes=None, preprocessing=preprocessing, fullinfo=fullinfo, hdf=hdf,
                  shape_predictor_path=shape_predictor_path)
         self.has_roi = has_roi
-        if not self.has_roi:
-            from vgg2_dataset_age import increase_roi
-            self.dnnFaceDetector = dlib.cnn_face_detection_model_v1(face_detector_model)
+        from vgg2_dataset_age import increase_roi
+        self.dnnFaceDetector = dlib.cnn_face_detection_model_v1(face_detector_model)
         
 
     def _preprocessing(self, img, roi=None):
@@ -674,10 +673,35 @@ class DataTestGenerator(DataGenerator):
         if frame is None:
             print('ERROR: Unable to read image %s' % hdf_d['img'][()])
             return None
-        if self.has_roi:
+        try:
             roi = hdf_d['roi'][()]
+            if isinstance(roi, str):
+                roi = None
+        except KeyError:
+            roi = None
         img = self._preprocessing(frame, roi)
         if self.fullinfo:
             return (img, hdf_d['img'][()], hdf_d['img_relative_path'][()], roi)
 
         return img # (img, hdf_d['img_relative_path'][()])
+
+
+class Preprocessor:
+    def __init__(self, target_shape,
+                    preprocessing='full_normalization',
+                    shape_predictor_path='training/resources/shape_predictor_68_face_landmarks.dat',
+                    face_detector_model='training/resources/mmod_human_face_detector.dat',
+                ):
+        self.gen = DataTestGenerator(
+            data=[],
+            target_shape=target_shape,
+            batch_size=1,
+            preprocessing=preprocessing,
+            fullinfo=False,
+            hdf=None,
+            shape_predictor_path=shape_predictor_path,
+            face_detector_model=face_detector_model,
+            has_roi=False,)
+
+    def preprocess(self, img):
+        return self.gen._preprocessing(img)
