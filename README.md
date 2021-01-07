@@ -1,234 +1,49 @@
-# Gender recognition in the wild: a robustness evaluation over corrupted images
+# Age Estimation - Group 10
 
-This repository contains the code for the paper *Gender recognition in the wild: a robustness evaluation over corrupted images - A. Greco, A. Saggese, M. Vento, V. Vigilante - Journal of Ambient Intelligence and Humanized Computing 2020*
+Final project for Artificial Vision 2020/2021 - Group 10
 
-If you use this code in your research, please cite this paper.
+## Team Members
+* [Giovanni Ammendola](https://github.com/giorge1)
+* [Edoardo Maffucci](https://github.com/knowsx2)
+* [Vincenzo Petrone](https://github.com/v8p1197)
+* [Salvatore Scala](https://github.com/knowsx2)
 
+## Usage
 
-Gender recognition framework provided by [MIVIA Lab](https://mivia.unisa.it), including training and evaluation code.
+### Training
 
-The repository includes the code for generating the corrupted version of the LFW+ dataset (LFW+C) as well as other corrupted datasets, in order to allow the evaluation of the model robustness to image corruptions.
+1. Open the [Google Colab Notebook](https://colab.research.google.com/drive/1gQ9vi4v3GxIAruQbz6h5aE_1zmVrpaMX?authuser=1)
+2. Run all cells in sections 1 and 2
 
+### Testing
 
+1. Open the [Google Colab Notebook](https://colab.research.google.com/drive/1gQ9vi4v3GxIAruQbz6h5aE_1zmVrpaMX?authuser=1)
+2. Run all cells in sections 1 and 3
 
+## Contents
 
-## Setup
+This project derives from [MIVIA](https://github.com/MiviaLab)'s [Gender Recognition Framework](https://github.com/AV2020-team/GenderRecognitionFramework).
 
-Python3 libraries you need to install:
+Our changes consist in:
 
-```
-numpy==1.18.4
-opencv-python==4.2.0.34
-tensorflow-gpu==1.14.0
-Keras==2.3.1
-matplotlib==3.2.1
-Pillow==7.1.2
-scikit-image==0.17.2
-scipy==1.4.1
-tabulate==0.8.7
-tqdm==4.46.1
-```
-
-You will also need to download all the data for the datasets that you intend to use and extract it in the `/dataset/data` directory.
-You will find the annotation for vggface2 which includes the detected regions with the faces [here](https://github.com/MiviaLab/GenderRecognitionFramework/releases/tag/0), you will need to download the images separately from the official website.
-
-## Dataset
-The implemented _datasets_ are VGGFACE2, LFW+, MIVIA and FERET. <br>
-Run these commands from dataset directory in order to test them:
-
-```bash
-python3 vgg2_dataset_gender.py
-python3 lfw_dataset_gender.py
-python3 mivia_dataset_gender.py
-python3 feret_dataset_gender.py
-```
-
-## Corrupted images dataset
-
-In order to export dataset augmented with corruptions, run these commands from _dataset_ directory:
-
-```bash
-python3 lfw_plus_aug_dataset.py exp
-python3 feret_aug_dataset.py exp
-```
-
-## Train
-In order to train neural networks, you must run <code>train.py</code> script from the _training_ directory.<br>
-Here the used commands to train the associated paper solutions.
-
-```bash
-python3 train.py --net squeezenet --dataset vggface2_gender --pretraining imagenet --preprocessing vggface2 --augmentation default --batch 128 --lr 0.005:0.2:20 --sel_gpu 0 --training-epochs 70 --weight_decay 0.005 --momentum
-```
-```bash
-python3 train.py --net shufflenet224 --dataset vggface2_gender --pretraining imagenet --preprocessing vggface2 --augmentation default --batch 128 --lr 0.005:0.2:20 --sel_gpu 0 --training-epochs 70 --weight_decay 0.005 --momentum
-```
-```bash
-python3 train.py --net mobilenet224 --dataset vggface2_gender --pretraining imagenet --preprocessing vggface2 --augmentation default --batch 128 --lr 0.005:0.2:20 --sel_gpu 0 --training-epochs 70 --weight_decay 0.005 --momentum
-```
-```bash
-python3 train.py --net mobilenet96 --dataset vggface2_gender --pretraining imagenet --preprocessing vggface2 --augmentation default --batch 128 --lr 0.005:0.2:20  --sel_gpu 0 --training-epochs 70 --weight_decay 0.005 --momentum
-```
-```bash
-python3 train.py --net mobilenet64_bio --dataset vggface2_gender --preprocessing vggface2 --augmentation default --batch 128 --lr 0.005:0.2:20 --sel_gpu 0 --training-epochs 70 --weight_decay 0.005 --momentum
-```
-```bash
-python3 train.py --net xception71 --dataset vggface2_gender --pretraining imagenet --preprocessing vggface2 --augmentation default --batch 128 --lr 0.005:0.2:20 --sel_gpu 0 --training-epochs 70 --weight_decay 0.005 --momentum
-```
-```bash
-python3 train.py --net senet50 --dataset vggface2_gender --pretraining imagenet --preprocessing vggface2 --augmentation default --batch 128 --lr 0.005:0.2:20 --sel_gpu 0 --training-epochs 70 --weight_decay 0.005 --momentum
-```
-```bash
-python3 train.py --net densenet121bc --dataset vggface2_gender --pretraining imagenet --preprocessing vggface2 --augmentation default --batch 128 --lr 0.005:0.2:20 --sel_gpu 0 --training-epochs 70 --weight_decay 0.005 --momentum
-```
-```bash
-python3 train.py --net vgg16 --dataset vggface2_gender --pretraining vggface2 --preprocessing vggface2 --augmentation default --batch 128 --lr 0.005:0.2:20 --sel_gpu 0 --training-epochs 70 --weight_decay 0.005 --momentum
-```
-```bash
-python3 train.py --net vgg16 --dataset vggface2_gender --pretraining imagenet --preprocessing vggface2 --augmentation default --batch 128 --lr 0.005:0.2:20 --sel_gpu 0,1,2 --ngpus 3 --training-epochs 70 --weight_decay 0.005 --momentum
-```
-
-## Evaluation
-In order to evaluate the networks, move into the _evaluate_ directory and run the following commands according to the dataset you want to test which. In the subdirectory _results_, as the name suggests, you will find the results of these scripts, divided by dataset.
-
-For each dataset, the provided commands must be executed in order beacuse each command depends on the results of the previous ones.
-
-In _combo_ plotting scripts (e.g. <code>plot_combo_lfw_vggface2_from_xls.py</code>) , data not read from .xls files (inserted as argument on command line) are stored as global variables in the scripts themselves.
-In the evaluation scripts ("_eval ... .py_" scripts), passing --time the .txt output files will have date and time in their name.
-
-### VGGFACE2
-
-```bash
-python3 eval_uncorrupted_vggface2_gender.py --gpu 0 --path ../trained
-```
-```bash
-python3 conv_txt_to_xls.py --input results/vggface2/results.txt
-```
-```bash
-python3 tabulate_vggface2_gender_from_xls.py --uncorrupted results/vggface2/results.xls
-```
-
-### LFW+
-```bash
-python3 eval_corrupted_lfw_gender.py --gpu 0 --path ../trained
-```
-```bash
-python3 eval_corrupted_lfw_gender.py --gpu 0 --path ../trained --nocorruption
-```
-```bash
-python3 conv_txt_to_xls.py --input results/lfw/corrupted_results.txt
-```
-```bash
-python3 conv_txt_to_xls.py --input results/lfw/uncorrupted_results.txt
-```
-```bash
-python3 plot_and_tabulate_lfw_from_xls.py --corrupted results/lfw/corrupted_results.xls --uncorrupted results/lfw/uncorrupted_results.xls
-```
-```bash
-python3 plot_combo_lfw_vggface2_from_xls.py --corrupted results/lfw/corrupted_results.xls --uncorrupted results/lfw/uncorrupted_results.xls
-```
-
-### MIVIA
-```bash
-python3 eval_uncorrupted_mivia_gender.py --gpu 0 --path ../trained
-```
-```bash
-python3 conv_txt_to_xls.py --input results/mivia/results.txt 
-```
-```bash
-python3 tabulate_mivia_gender_from_xls.py --uncorrupted results/mivia/results.xls
-```
-
-
-### FERET
-```bash
-python3 eval_corrupted_feret_gender.py --gpu 0 --path ../trained
-```
-```bash
-python3 eval_corrupted_feret_gender.py --gpu 0 --path ../trained --nocorruption
-```
-```bash
-python3 conv_txt_to_xls.py --input results/feret/corrupted_results.txt
-```
-```bash
-python3 conv_txt_to_xls.py --input results/feret/uncorrupted_results.txt
-```
-```bash
-python3 plot_and_tabulate_feret_from_xls.py --corrupted results/feret/corrupted_results.xls --uncorrupted results/feret/uncorrupted_results.xls
-```
-```bash
-python3 plot_combo_feret_lfw_vggface2_from_xls.py --corrupted results/feret/corrupted_results.xls --uncorrupted results/feret/uncorrupted_results.xls
-```
-
-## Project structure
-The whole project should look like in this way:
-
-```
-gender
-├── dataset
-│   ├── cache
-│   ├── data
-│   ├── feret_aug_dataset.py
-│   ├── face_models
-│   ├── __pycache__
-│   ├── mivia_dataset_gender.py
-│   ├── feret_dataset_gender.py
-│   ├── face_detector.py
-│   ├── lfw_plus_aug_dataset.py
-│   ├── vgg2_utils.py
-│   ├── lfw_dataset_gender.py
-│   └── vgg2_dataset_gender.py
-├── trained
-├── training
-│   ├── corruptions.py
-│   ├── __init__.py
-│   ├── __pycache__
-│   ├── keras-shufflenetV2
-│   ├── keras-squeezenet
-│   ├── cropout_test.py
-│   ├── keras-squeeze-excite-network
-│   ├── center_loss.py
-│   ├── train.py
-│   ├── model_build.py
-│   ├── autoaug_test.py
-│   ├── scratch_models
-│   ├── dataset_tools.py
-│   ├── keras-shufflenet
-│   ├── keras_vggface
-│   ├── DenseNet
-│   ├── check_params.py
-│   ├── autoaugment
-│   └── ferplus_aug_dataset.py
-├── evaluate
-│   ├── plot_combo_feret_lfw_vggface2_from_xls.py
-│   ├── conv_txt_to_xls.py
-│   ├── eval_corrupted_feret_gender.py
-│   ├── xls_models_tools.py
-│   ├── plot_combo_lfw_vggface2_from_xls.py
-│   ├── results
-│   ├── tabulate_vggface2_gender_from_xls.py
-│   ├── tabulate_mivia_gender_from_xls.py
-│   ├── eval_corrupted_lfw_gender.py
-│   ├── plot_and_tabulate_lfw_from_xls.py
-│   ├── eval_uncorrupted_mivia_gender.py
-│   ├── plot_and_tabulate_feret_from_xls.py
-│   └── eval_uncorrupted_vggface2_gender.py
-├── __init__.py
-├── README.md
-└── content.txt
-```
-
-## Acknowledgements
-The code for generation of the corrupted dataset relies on the work from [github.com/hendrycks/robustness](github.com/hendrycks/robustness).
-
-The code in this repository also includes open keras implementations of well-known CNN architectures:
-* Shufflenet: https://github.com/arthurdouillard/keras-shufflenet
-* ShufflenetV2: https://github.com/opconty/keras-shufflenetV2
-* Squeezenet: https://github.com/rcmalli/keras-squeezenet
-* SENet: https://github.com/titu1994/keras-squeeze-excite-network
-* VGGFace: https://github.com/rcmalli/keras-vggface
-* DenseNet: https://github.com/titu1994/DenseNet
-* MobileNetV2: https://github.com/vvigilante/mobilenet_v2_keras
-* VGG16: https://github.com/fchollet/deep-learning-models
-
-
-
+* [training](https://github.com/AV2020-team/AgeEstimation/tree/master/training) package:
+	* [data_augmentation](https://github.com/AV2020-team/AgeEstimation/tree/master/training/data_augmentation) package:
+		* [myautoaugment.py](https://github.com/AV2020-team/AgeEstimation/blob/master/training/data_augmentation/myautoaugment.py): defines `MyAutoAugment` class, performing our custom data augmentation on an image
+		* [policies.py](https://github.com/AV2020-team/AgeEstimation/blob/master/training/data_augmentation/policies.py): defines standard, blur and noise policies
+		* [transformation.py](https://github.com/AV2020-team/AgeEstimation/blob/master/training/data_augmentation/transformation.py): defines the methods that actual perform data augmentation transformations, using library [imgaug](https://imgaug.readthedocs.io/en/latest/) ([GitHub repository](https://github.com/aleju/imgaug))
+	* [dataset_tools.py](https://github.com/AV2020-team/AgeEstimation/blob/master/training/dataset_tools.py) script:
+		* Face alignment method
+		* `DataGenerator` class modified: it loads samples from an `hdf5` file, performing preprocessing and augmentation
+		* `DataTestGenerator` class created: loads test samples with or without ROI available, performing only preprocessing
+	* [model_build.py](https://github.com/AV2020-team/AgeEstimation/blob/master/training/model_build.py) script:
+		* `efficientnetb3_224_build`  method added: uses EfficientNetB3_224x224 backbone
+	* [start_test_csv.sh](https://github.com/AV2020-team/AgeEstimation/blob/master/training/start_test_csv.sh) script: performs testing
+	* [start_train.py.sh](https://github.com/AV2020-team/AgeEstimation/blob/master/training/start_train.py.sh) script: performs training
+	* [train.py](https://github.com/AV2020-team/AgeEstimation/blob/master/training/train.py) script:
+		* `reduce_lr_on_plateau` method created: returns a [ReduceLROnPlateau](https://keras.io/api/callbacks/reduce_lr_on_plateau/) scheduling
+		* `age_mae` and `age_mse` metrics methods created: compute MAE and MSE on predicted and true labels
+		* `test` mode: generates a `csv` file containing the labelled test samples, using the output predicted by the loaded model
+* [dataset](https://github.com/AV2020-team/AgeEstimation/tree/master/dataset) package:
+	* [vgg2_dataset_age.py](https://github.com/AV2020-team/AgeEstimation/blob/master/dataset/vgg2_dataset_age.py) script: all methods have been modified to generate also an `hdf5` file containing the original compressed images and ages as labels
+	* [complementary_ds.py](https://github.com/AV2020-team/AgeEstimation/blob/master/dataset/complementary_ds.py) script: creates a labelled test set containing samples not included in the original training set
+	* [test_complementary_ds.py](https://github.com/AV2020-team/AgeEstimation/blob/master/dataset/test_complementary_ds.py) script: tests the loaded model on the generated complementary dataset
