@@ -4,7 +4,7 @@ Final project for Artificial Vision 2020/2021 - Group 10
 
 ## Team Members
 * [Giovanni Ammendola](https://github.com/giorge1)
-* [Edoardo Maffucci](https://github.com/knowsx2)
+* [Edoardo Maffucci](https://github.com/emaff)
 * [Vincenzo Petrone](https://github.com/v8p1197)
 * [Salvatore Scala](https://github.com/knowsx2)
 
