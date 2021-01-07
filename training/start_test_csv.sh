@@ -6,11 +6,11 @@ pip install omegaconf
 pip install dlib
 
 python3 train.py \
---net mobilenet96 \
+--net vgg16 \
 --pretraining imagenet \
 --dataset vggface2_age \
---trained_weights checkpoint.45.hdf5 \
+--trained_weights checkpoint.18.hdf5 \
 --preprocessing full_normalization \
---batch 64 \
+--batch 128 \
 --dir ../testing  \
 --mode test
