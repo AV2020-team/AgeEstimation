@@ -106,5 +106,3 @@ def complementary_ds(debug_max_num_samples=None,
     return data
 
 complementary_ds(debug_max_num_samples=150000)
-a = 42
-print(a)
