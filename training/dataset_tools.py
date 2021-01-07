@@ -618,9 +618,13 @@ class DataTestGenerator(DataGenerator):
     def _preprocessing(self, img, roi=None):
         if roi is None:
             faces = self.dnnFaceDetector(img, 1)
-            face = max(faces, key=lambda d: (d.rect.right() - d.rect.left()) * (d.rect.bottom() - d.rect.top()))
-            roi = [face.rect.left(), face.rect.top(), face.rect.right() - face.rect.left(), face.rect.bottom()-face.rect.top()]
-            increase_roi(img.shape[1], img.shape[0], roi, 0.2)
+            if len(faces) == 0:
+                roi = (0, 0, img.shape[1], img.shape[0])
+            else:
+                face = max(faces, key=lambda d: (d.rect.right() - d.rect.left()) * (d.rect.bottom() - d.rect.top()))
+                roi = [face.rect.left(), face.rect.top(), face.rect.right() - face.rect.left(), face.rect.bottom()-face.rect.top()]
+        from vgg2_dataset_age import increase_roi
+        roi = increase_roi(img.shape[1], img.shape[0], roi, 0.2)
         img = cut(img, roi)
         
         img = face_alignment(img, self.shape_predictor)
